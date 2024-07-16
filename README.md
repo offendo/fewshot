@@ -1,3 +1,3 @@
-# autoformalize
+# fewshot
 
-Describe your project here.
+Simple fewshot learning with ChatGPT. 
