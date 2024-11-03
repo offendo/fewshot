@@ -5,7 +5,7 @@ Simple fewshot learning with ChatGPT.
 ## Usage
 
 ``` sh
-❯ python src/fewshot/fewshot.py --help
+❯ python -m fewshot --help
 usage: fewshot [-h] --file FILE [--output OUTPUT] [--examples EXAMPLES] --instruction INSTRUCTION --template TEMPLATE [--n_examples N_EXAMPLES] [--retrieve {fixed,random,bleu}] [--system SYSTEM]
                [--llm {gpt-3.5-turbo,gpt-4-turbo,gpt-4o}]
 
@@ -30,6 +30,7 @@ options:
                         system instruction
   --llm {gpt-3.5-turbo,gpt-4-turbo,gpt-4o}, -m {gpt-3.5-turbo,gpt-4-turbo,gpt-4o}
                         name of OpenAI model to use
+
 ```
 
 Here we have a JSONL file of examples to use in our prompt:
@@ -45,7 +46,7 @@ Here we have a JSONL file of examples to use in our prompt:
 {"prompt":"test6"}
 ```
 
-Now, we can process a file of prompts called `inputs.json` with the instruction `"Solve the following task"`, fetching `n = 1` examples by nearest BLEU score. Outputs will be written to `stdout` by default.
+Now, we can process a file of prompts called `inputs.json` with the instruction `"Solve the following task."`, fetching `n = 1` examples by nearest BLEU score. Outputs will be written to `stdout` by default.
 
 ``` sh
 ❯ python src/fewshot/fewshot.py              \
@@ -56,5 +57,6 @@ Now, we can process a file of prompts called `inputs.json` with the instruction 
   --num_examples 1                           \
   --retrieve 'bleu'
   
+# Output
 {"prompt":"test6","predictions":"completion6"}
 ```

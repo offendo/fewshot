@@ -65,7 +65,7 @@ def format_chatgpt_prompt(
 
         # Add input/output to messages
         messages.append({"role": "user", "content": prompt})
-        messages.append({"role": "assistant", "content": example["completion"]})
+        messages.append({"role": "assistant", "content": example["completion"] + "<|endoftext|>"})
 
     # Add the final input to the messages
     messages.append({"role": "user", "content": template.format(**x)})
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", "-o", type=str, required=False, default=sys.stdout, help="path to output JSONL file")
 
     # Examples/prompt stuff
-    parser.add_argument("--examples", "-e", type=str, required=False, help="JSON file with examples to process. Must have 'completion' field for outputs.")
+    parser.add_argument("--examples", "-e", type=str, required=False, help="JSONL file with examples to process. Must have 'completion' field for outputs.")
     parser.add_argument("--instruction", "-i", type=str, required=True, help="instruction to give to LLM")
     parser.add_argument("--template", "-t", type=str, required=True, help="prompt template to format inputs, like `template.format(**ex)`")
     parser.add_argument("--n_examples", "-n", type=int, required=False, default=1, help="number of examples to add to prompt")
