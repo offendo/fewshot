@@ -1,4 +1,8 @@
 from fewshot.fewshot import *
+from argparse import ArgumentParser
+import sys
+import pandas as pd
+from tqdm import tqdm
 
 parser = ArgumentParser(prog="fewshot", description="prompts LLM with examples")
 
@@ -15,8 +19,10 @@ parser.add_argument("--n_examples", "-n", type=int, required=False, default=1, h
 parser.add_argument("--retrieve", "-r", type=str, required=False, default="fixed", choices=RETRIEVE_METHODS.keys(), help="example retrieval method to use")
 
 # Model stuff
-parser.add_argument("--system", "-s", type=str, required=False, default="You are a helpful assistant.", help="system instruction")
-parser.add_argument("--llm", "-m", type=str, required=False, default="gpt-3.5-turbo", choices=["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o"], help="name of OpenAI model to use")
+parser.add_argument("--system", "-s", type=str, required=False, default=None, help="system instruction")
+parser.add_argument("--llm", "-m", type=str, required=False, default="gpt-3.5-turbo", help="name of OpenAI model to use")
+parser.add_argument("--response_schema", type=str, required=False, default=None, help="path to JSON schema")
+parser.add_argument("--json_mode", action='store_true', help="enable JSON mode or not")
 # fmt:on
 
 args = parser.parse_args()
@@ -45,7 +51,11 @@ for i, row in tqdm(df.iterrows(), total=len(df)):
         retrieve_fn=RETRIEVE_METHODS[args.retrieve],
     )
 
-    predictions.append(complete(args.llm, messages, 0.0))
+    predictions.append(
+        complete(
+            args.llm, messages=messages, temperature=0.0, response_schema=args.response_schema, json_mode=args.json_mode
+        )
+    )
 
 df["predictions"] = predictions
 df.to_json(args.output, orient="records", lines=True)

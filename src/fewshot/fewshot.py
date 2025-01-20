@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-import random
-import os
-import sys
-import pandas as pd
-import logging
-from sacrebleu import BLEU
-from tqdm import tqdm
-from typing import Callable, Iterable, Mapping, Sequence
-from openai import OpenAI
-from argparse import ArgumentParser
 import heapq
+import json
+import logging
+import os
+import random
+from pathlib import Path
+from typing import Callable, Sequence
+
+from openai import NOT_GIVEN, OpenAI
+from sacrebleu import BLEU
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", None))
 
@@ -47,7 +46,7 @@ RETRIEVE_METHODS = {
 def format_chatgpt_prompt(
     x: dict,
     instruction: str,
-    system: str,
+    system: str | None,
     template: str,
     examples: Sequence[dict],
     n_examples: int,
@@ -56,7 +55,10 @@ def format_chatgpt_prompt(
     selected = retrieve_fn(x, examples, n_examples, template)
 
     # Add the system info & prompt instructions.
-    messages = [{"role": "system", "content": system}]
+    if system is not None:
+        messages = [{"role": "system", "content": system}]
+    else:
+        messages = []
     messages.append({"role": "user", "content": instruction})
     for example in selected:
         # Format prompt with all but 'completion'
@@ -73,63 +75,28 @@ def format_chatgpt_prompt(
     return messages
 
 
-def complete(model: str, messages: list, temperature: float = 0.0):
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
+def is_temp_supported(model):
+    return False
+
+
+def is_response_format_supported(model):
+    return True
+
+
+def parse_json_schema(path):
+    with open(path, "r") as f:
+        schema = json.load(f)
+    return schema
+
+
+def complete(
+    model: str, messages: list, temperature: float = 0.0, response_schema: Path | None = None, json_mode: bool = False
+):
+    temp = temperature if is_temp_supported(model) else NOT_GIVEN
+    fmt = (
+        parse_json_schema(response_schema)
+        if is_response_format_supported(model) and response_schema is not None
+        else {"type": "json_object"} if json_mode else NOT_GIVEN
     )
+    response = client.chat.completions.create(model=model, messages=messages, temperature=temp, response_format=fmt)
     return response.choices[0].message.content
-
-
-if __name__ == "__main__":
-    parser = ArgumentParser(prog="fewshot", description="prompts LLM with examples")
-
-    # fmt:off
-    # IO stuff
-    parser.add_argument("--file", "-f", type=str, required=True, help="JSONL file with inputs to process")
-    parser.add_argument("--output", "-o", type=str, required=False, default=sys.stdout, help="path to output JSONL file")
-
-    # Examples/prompt stuff
-    parser.add_argument("--examples", "-e", type=str, required=False, help="JSONL file with examples to process. Must have 'completion' field for outputs.")
-    parser.add_argument("--instruction", "-i", type=str, required=True, help="instruction to give to LLM")
-    parser.add_argument("--template", "-t", type=str, required=True, help="prompt template to format inputs, like `template.format(**ex)`")
-    parser.add_argument("--n_examples", "-n", type=int, required=False, default=1, help="number of examples to add to prompt")
-    parser.add_argument("--retrieve", "-r", type=str, required=False, default="fixed", choices=RETRIEVE_METHODS.keys(), help="example retrieval method to use")
-
-    # Model stuff
-    parser.add_argument("--system", "-s", type=str, required=False, default="You are a helpful assistant.", help="system instruction")
-    parser.add_argument("--llm", "-m", type=str, required=False, default="gpt-3.5-turbo", choices=["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o"], help="name of OpenAI model to use")
-    # fmt:on
-
-    args = parser.parse_args()
-
-    # Read in the input file
-    # ======================
-    df = pd.read_json(args.file, lines=True)
-    logger.info(f"Input file contains {len(df)} examples.")
-
-    if args.examples is not None:
-        examples = pd.read_json(args.examples, lines=True).to_dict(orient="records")
-        logger.info(f"Example file contains {len(examples)} examples.")
-    else:
-        examples = []
-        logger.info(f"No examples provided - defaulting to zero-shot.")
-
-    predictions = []
-    for i, row in tqdm(df.iterrows(), total=len(df)):
-        messages = format_chatgpt_prompt(
-            x=row.to_dict(),
-            instruction=args.instruction,
-            system=args.system,
-            template=args.template.replace("\\n", "\n"),
-            examples=examples,
-            n_examples=args.n_examples,
-            retrieve_fn=RETRIEVE_METHODS[args.retrieve],
-        )
-
-        predictions.append(complete(args.llm, messages, 0.0))
-
-    df["predictions"] = predictions
-    df.to_json(args.output, orient="records", lines=True)
-    logger.info(f"Saved predictions to {getattr(args.output, 'name', args.output)}")
